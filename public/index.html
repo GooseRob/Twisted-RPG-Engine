@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Twisted Engine - Portal</title>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/zxcvbn/4.4.2/zxcvbn.js"></script>
+    
+    <style>
+        /* 1. THE SKIN ENGINE (CSS Variables) */
+        :root {
+            --bg-color: #0a0a0a;       /* Deep Void Black */
+            --panel-bg: #141414;       /* Panel Background */
+            --primary: #8a0000;        /* Blood Red (Main Theme) */
+            --text-main: #e0e0e0;      /* Off-White Text */
+            
+            /* Feedback Colors */
+            --success: #00ff00;        /* Hacker Green (Good) */
+            --error: #ff0000;          /* Bright Red (Bad) */
+            --focus: #ffffff;          /* White (Typing) */
+            
+            /* Role Colors */
+            --admin-color: #ff0000;    /* Admin Red */
+            --mod-color: #0088ff;      /* Moderator Blue */
+        }
+
+        /* 2. GLOBAL LAYOUT (Flexbox) */
+        body { 
+            background-color: var(--bg-color); 
+            color: var(--text-main);
+            font-family: 'Courier New', Courier, monospace; 
+            display: flex; justify-content: center; align-items: center; 
+            height: 100vh; margin: 0;
+        }
+
+        /* The Main Game Box */
+        .container {
+            background: var(--panel-bg);
+            border: 2px solid var(--primary);
+            padding: 40px;
+            width: 400px;
+            text-align: center;
+            box-shadow: 0 0 20px #300000; /* Red Glow */
+        }
+
+        h1 { color: var(--primary); margin-bottom: 20px; text-shadow: 0 0 5px red; }
+
+        /* 3. INPUTS & UX */
+        .input-group { margin: 15px 0; text-align: left; }
+        
+        label { font-size: 11px; color: #888; display: block; margin-bottom: 5px; font-weight: bold; }
+        
+        input, select {
+            width: 98%; padding: 12px; background: #000; 
+            border: 2px solid #333; color: #fff; outline: none; transition: 0.2s;
+            font-family: 'Courier New', Courier, monospace;
+        }
+        
+        input:focus { border-color: var(--focus); box-shadow: 0 0 8px rgba(255,255,255,0.2); }
+
+        /* Validation States */
+        input.error-glow { border: 2px solid var(--error) !important; background: #2a0000 !important; }
+        input.success-glow { border: 2px solid var(--success) !important; background: #002a00 !important; }
+
+        .status-text { font-size: 12px; float: right; font-weight: 900; text-transform: uppercase; }
+
+        /* 4. BUTTONS */
+        button {
+            width: 100%; padding: 12px; background: var(--primary); 
+            color: white; border: none; cursor: pointer; 
+            font-weight: bold; margin-top: 20px; font-size: 16px;
+        }
+        button:hover { background: #b30000; box-shadow: 0 0 10px red; }
+
+        .switch-link { display: block; margin-top: 15px; font-size: 12px; color: #666; cursor: pointer; text-decoration: underline; }
+
+        /* 5. SPECIAL STAFF BUTTONS */
+        .admin-btn {
+            background: #220000; border: 1px solid var(--admin-color); color: var(--admin-color);
+            margin-top: 10px;
+        }
+        .admin-btn:hover { background: var(--admin-color); color: black; box-shadow: 0 0 15px var(--admin-color); }
+
+        .mod-btn {
+            background: #001122; border: 1px solid var(--mod-color); color: var(--mod-color);
+            margin-top: 10px;
+        }
+        .mod-btn:hover { background: var(--mod-color); color: black; box-shadow: 0 0 15px var(--mod-color); }
+
+        /* Utility Classes */
+        .hidden { display: none !important; }
+        .website-field { display: none; }
+        .strength-meter { height: 6px; background: #333; margin-top: 5px; width: 0%; transition: 0.3s; }
+        
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        
+        <div id="login-view">
+            <h1>LOGIN</h1>
+            <div class="input-group">
+                <label>USERNAME</label>
+                <input type="text" id="loginUser">
+            </div>
+            <div class="input-group">
+                <label>PASSWORD</label>
+                <input type="password" id="loginPass">
+            </div>
+            <button onclick="doLogin()">ENTER THE VOID</button>
+            <span class="switch-link" onclick="switchView('register')">Need an account? Join the Carnage</span>
+        </div>
+
+        <div id="register-view" class="hidden">
+            <h1>REGISTER</h1>
+            
+            <div class="input-group">
+                <label>USERNAME <span id="regStatus" class="status-text"></span></label>
+                <input type="text" id="regUser" onkeyup="checkLive('username')" placeholder="Choose a name...">
+            </div>
+
+            <div class="input-group">
+                <label>EMAIL <span id="emailStatus" class="status-text"></span></label>
+                <input type="email" id="regEmail" onkeyup="checkLive('email')" onblur="checkLive('email')" placeholder="name@example.com">
+            </div>
+
+            <div class="input-group">
+                <label>PASSWORD <span id="passStrength" class="status-text"></span></label>
+                <input type="password" id="regPass" onkeyup="checkStrength()">
+                <div id="meterBar" class="strength-meter"></div>
+            </div>
+
+            <input type="text" id="website" class="website-field">
+
+            <button onclick="doRegister()">CREATE ACCOUNT</button>
+            <span class="switch-link" onclick="switchView('login')">Back to Login</span>
+        </div>
+
+        <div id="creator-view" class="hidden">
+            <h1>CREATE HERO</h1>
+            
+            <div class="input-group">
+                <label>HERO NAME</label>
+                <input type="text" id="charName" placeholder="Enter name...">
+            </div>
+
+            <div class="input-group">
+                <label>CLASS</label>
+                <select id="classSelect"><option>Loading...</option></select>
+            </div>
+            <div class="input-group">
+                <label>RACE</label>
+                <select id="raceSelect"><option>Loading...</option></select>
+            </div>
+
+            <div class="input-group hidden" id="bgSection">
+                <label>BACKGROUND</label>
+                <select id="bgSelect"><option>None</option></select>
+            </div>
+            <div class="input-group hidden" id="featSection">
+                <label>STARTING FEAT</label>
+                <select id="featSelect"><option>None</option></select>
+            </div>
+
+            <button onclick="createCharacter()">BORN IN BLOOD</button>
+            <span class="switch-link" onclick="checkCharacterStatus(localStorage.getItem('twisted_id'), localStorage.getItem('twisted_user'), localStorage.getItem('twisted_role'))">Cancel</span>
+        </div>
+
+        <div id="dashboard-view" class="hidden">
+            <h1>ACCESS GRANTED</h1>
+            <p id="welcomeMsg" style="color:var(--success); margin-bottom: 20px;"></p>
+            
+            <div id="charList" style="margin-bottom: 20px;"></div>
+
+            <div id="staffArea"></div>
+
+            <span class="switch-link" onclick="logout()">Logout</span>
+        </div>
+
+        <p id="msgBox" style="margin-top:15px; font-size:12px; color: yellow; font-weight: bold;"></p>
+    </div>
+
+    <script>
+        // ============================
+        // JAVASCRIPT LOGIC
+        // ============================
+
+        // --- 1. VIEW SWITCHER ---
+        function switchView(viewName) {
+            ['login', 'register', 'creator', 'dashboard'].forEach(v => {
+                document.getElementById(v + '-view').classList.add('hidden');
+            });
+            document.getElementById('msgBox').innerText = ""; // Clear errors
+            document.getElementById(viewName + '-view').classList.remove('hidden');
+        }
+
+        // --- 2. LOGIN LOGIC ---
+        async function doLogin() {
+            const user = document.getElementById('loginUser').value;
+            const pass = document.getElementById('loginPass').value;
+            const msg = document.getElementById('msgBox');
+            msg.innerText = "Authenticating...";
+
+            const res = await fetch('/login', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: user, password: pass })
+            });
+            const data = await res.json();
+
+            if (data.success) {
+                // SESSION STORAGE
+                localStorage.setItem('twisted_id', data.userId);
+                localStorage.setItem('twisted_user', data.username);
+                localStorage.setItem('twisted_role', data.role);
+                
+                // CHECK HEROES
+                checkCharacterStatus(data.userId, data.username, data.role);
+            } else {
+                msg.style.color = "red"; msg.innerText = "❌ " + data.message;
+            }
+        }
+
+        // --- 3. CHARACTER CHECKER ---
+        async function checkCharacterStatus(userId, username, role) {
+            const res = await fetch('/my-characters', {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ userId: userId })
+            });
+            const data = await res.json();
+
+            if(data.count === 0) {
+                loadCreatorData();
+            } else {
+                showDashboard(username, role, data.characters);
+            }
+        }
+
+        // --- 4. DASHBOARD RENDERER ---
+        function showDashboard(username, role, characters) {
+            switchView('dashboard');
+            document.getElementById('welcomeMsg').innerText = "Welcome, " + username;
+            
+            // A. RENDER CHARACTER LIST
+            const listArea = document.getElementById('charList');
+            if (characters && characters.length > 0) {
+                let html = `<h3 style="color:#666; font-size:12px; border-bottom:1px solid #333; padding-bottom:5px;">MY HEROES</h3>`;
+                
+                characters.forEach(c => {
+                    html += `
+                    <div style="background:#111; border:1px solid #333; padding:10px; margin-bottom:10px; text-align:left;">
+                        <span style="color:var(--primary); font-weight:bold; font-size:16px;">${c.name}</span>
+                        <span style="float:right; color:#666;">Lvl ${c.level}</span>
+                        <div style="color:#888; font-size:12px;">${c.race_name} ${c.class_name}</div>
+                        
+                        <button onclick="enterGame(${c.id})" style="width:100%; margin-top:8px; background:#004400; font-size:12px; padding:8px;">PLAY</button>
+                    </div>`;
+                });
+                
+                html += `<button onclick="loadCreatorData()" style="background:#222; border:1px solid #444; color:#888; font-size:12px; margin-top:5px;">+ CREATE NEW HERO</button>`;
+                listArea.innerHTML = html;
+            }
+
+            // B. RENDER STAFF BUTTONS
+            const staffBox = document.getElementById('staffArea');
+            staffBox.innerHTML = ""; 
+
+            if (role === 'ADMIN' || role === 'GM') {
+                staffBox.innerHTML = `<button class="admin-btn" onclick="window.location.href='/adminsauce/'">⚡ MASTER CONTROL</button>`;
+            } else if (role === 'MOD') {
+                staffBox.innerHTML = `<button class="mod-btn" onclick="window.location.href='/adminsauce/'">🛡️ MODERATOR PANEL</button>`;
+            }
+        }
+
+        // --- 5. ENTER GAME LOGIC (REDIRECT) ---
+        function enterGame(charId) {
+            // This is the fix! We send the user to the game client file
+            // and pass the character ID as a URL parameter.
+            // Example: http://localhost:3000/game.html?id=1
+            window.location.href = "/game.html?id=" + charId;
+        }
+
+        function logout() { localStorage.clear(); switchView('login'); }
+
+        // --- 6. CHARACTER CREATOR LOGIC ---
+        async function loadCreatorData() {
+            document.getElementById('msgBox').innerText = "Loading Game Data...";
+            
+            const res = await fetch('/creation-data');
+            const json = await res.json();
+            
+            if (!json.success) { alert("Error loading data!"); return; }
+            
+            const { config, data } = json;
+
+            populateSelect('classSelect', data.classes);
+            populateSelect('raceSelect', data.races);
+            populateSelect('bgSelect', data.backgrounds);
+            populateSelect('featSelect', data.feats);
+
+            if (config.enable_backgrounds) document.getElementById('bgSection').classList.remove('hidden');
+            if (config.enable_feats) document.getElementById('featSection').classList.remove('hidden');
+
+            switchView('creator');
+        }
+
+        function populateSelect(id, items) {
+            const select = document.getElementById(id);
+            select.innerHTML = "";
+            items.forEach(i => {
+                let text = i.name;
+                if(i.bonus_str) text += ` (+${i.bonus_str} STR)`;
+                select.innerHTML += `<option value="${i.id}">${text}</option>`;
+            });
+        }
+
+        async function createCharacter() {
+            const name = document.getElementById('charName').value;
+            const classId = document.getElementById('classSelect').value;
+            const raceId = document.getElementById('raceSelect').value;
+            const bgId = document.getElementById('bgSelect').value;
+            const featId = document.getElementById('featSelect').value;
+            const userId = localStorage.getItem('twisted_id');
+
+            const res = await fetch('/create-character', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId, name, classId, raceId, backgroundId: bgId, featId })
+            });
+            const data = await res.json();
+
+            if (data.success) {
+                checkCharacterStatus(userId, localStorage.getItem('twisted_user'), localStorage.getItem('twisted_role'));
+            } else {
+                document.getElementById('msgBox').innerText = "❌ " + data.message;
+            }
+        }
+
+        // --- 7. REGISTRATION HELPERS ---
+        let debounceTimer;
+        function checkLive(type) {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(() => runCheck(type), 500);
+        }
+
+        async function runCheck(type) {
+            const id = type === 'username' ? 'regUser' : 'regEmail';
+            const val = document.getElementById(id).value;
+            if (val.length < 3) return;
+
+            if (type === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val)) {
+                document.getElementById('emailStatus').innerText = "BAD FORMAT";
+                return;
+            }
+
+            const res = await fetch('/check-field', {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ field: type, value: val })
+            });
+            const data = await res.json();
+            
+            const el = document.getElementById(id);
+            const status = document.getElementById(type === 'username' ? 'regStatus' : 'emailStatus');
+            
+            if (data.taken) { 
+                status.innerText = "TAKEN"; status.style.color = "red";
+                el.classList.add('error-glow'); el.classList.remove('success-glow');
+            } else { 
+                status.innerText = "AVAILABLE"; status.style.color = "#00ff00";
+                el.classList.add('success-glow'); el.classList.remove('error-glow');
+            }
+        }
+
+        function checkStrength() {
+            const val = document.getElementById('regPass').value;
+            const score = zxcvbn(val).score;
+            document.getElementById('meterBar').style.width = ['20%','40%','60%','80%','100%'][score];
+            document.getElementById('meterBar').style.background = ['#8a0000','#ff4400','#ffbb00','#99ff00','#00ff00'][score];
+        }
+
+        async function doRegister() {
+            const user = document.getElementById('regUser').value;
+            const pass = document.getElementById('regPass').value;
+            const email = document.getElementById('regEmail').value;
+            const honeypot = document.getElementById('website').value;
+            
+            const res = await fetch('/register', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: user, password: pass, email, honeypot })
+            });
+            const data = await res.json();
+            
+            if(data.success) { alert("Account Created! Login Now."); switchView('login'); }
+            else { document.getElementById('msgBox').innerText = data.message; }
+        }
+    </script>
+</body>
+</html>
